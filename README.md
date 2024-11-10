@@ -5,7 +5,7 @@
   <img alt="ShatteredPrism" src="/program_info/shatteredprism-header.svg" width="40%">
 </picture>
 </p>
-
+ 
 <p align="center">
   Shattered Prism is a custom launcher for Minecraft that allows you to easily manage multiple installations of Minecraft at once.<br />
   <br />This is a <b>fork</b> of PrismLauncher and is <b>not</b> endorsed by it.
