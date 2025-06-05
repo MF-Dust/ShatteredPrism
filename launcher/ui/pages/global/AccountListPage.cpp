@@ -138,8 +138,8 @@ void AccountListPage::on_actionAddAuthlibInjector_triggered()
     MinecraftAccountPtr account = AuthlibInjectorLoginDialog::newAccount(
         this, tr("Please enter your username (sometimes an email address), password, and the URL of your API server."
                  "<br>"
-                 "See <a href=\"https://github.com/unmojang/FjordLauncher/blob/develop/doc/alternative-auth-servers.md\">this page</a> in "
-                 "the Fjord Launcher repository for a list of common API servers."
+                 "See <a href=\"https://github.com/lunaislazier/ShatteredPrism/blob/develop/doc/alternative-auth-servers.md\">this page</a> in "
+                 "the Shattered Prism repository for a list of common API servers."
                  "<br><br>"
                  "<b>Caution!</b> Your username and password will be sent to the authentication server you specify!"));
 
@@ -223,17 +223,17 @@ void AccountListPage::updateButtonStates()
     bool hasSelection = !selection.empty();
     bool accountIsReady = false;
     bool accountIsOnline = false;
-    bool accountSupportsSkinManagement = false;
+    bool accountCanUploadSkins = false;
     if (hasSelection) {
         QModelIndex selected = selection.first();
         MinecraftAccountPtr account = selected.data(AccountList::PointerRole).value<MinecraftAccountPtr>();
         accountIsReady = !account->isActive();
         accountIsOnline = account->accountType() != AccountType::Offline;
-        accountSupportsSkinManagement = account->supportsSkinManagement();
+        accountCanUploadSkins = account->canUploadSkins();
     }
     ui->actionRemove->setEnabled(accountIsReady);
     ui->actionSetDefault->setEnabled(accountIsReady);
-    ui->actionManageSkins->setEnabled(accountIsReady && accountIsOnline && accountSupportsSkinManagement);
+    ui->actionManageSkins->setEnabled(accountIsReady && accountIsOnline && accountCanUploadSkins);
     ui->actionRefresh->setEnabled(accountIsReady && accountIsOnline);
 
     if (m_accounts->defaultAccount().get() == nullptr) {

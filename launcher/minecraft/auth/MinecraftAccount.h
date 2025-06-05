@@ -119,7 +119,7 @@ class MinecraftAccount : public QObject, public Usable {
 
     bool usesCustomApiServers() const { return data.usesCustomApiServers(); }
 
-    bool supportsSkinManagement() const { return data.supportsSkinManagement(); }
+    bool canUploadSkins() const { return data.canUploadSkins(); }
 
     QString accountDisplayString() const { return data.accountDisplayString(); }
 
@@ -133,7 +133,7 @@ class MinecraftAccount : public QObject, public Usable {
 
     [[nodiscard]] AccountType accountType() const noexcept { return data.type; }
 
-    bool ownsMinecraft() const { return data.type != AccountType::Offline && data.minecraftEntitlement.ownsMinecraft; }
+    bool ownsMinecraft() const { return data.type == AccountType::Offline || data.minecraftEntitlement.ownsMinecraft; }
 
     bool hasProfile() const { return data.profileId().size() != 0; }
 

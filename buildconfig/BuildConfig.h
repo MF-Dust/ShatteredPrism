@@ -60,7 +60,6 @@ class Config {
     /// The minor version number.
     int VERSION_MINOR;
 
-
     /**
      * The version channel
      * This is used by the updater to determine what channel the current version came from.
@@ -180,7 +179,7 @@ class Config {
     QString FMLLIBS_BASE_URL;
     QString TRANSLATION_FILES_URL;
 
-    QString MODPACKSCH_API_BASE_URL = "https://api.modpacks.ch/";
+    QString MODPACKSCH_API_BASE_URL = "https://api.feed-the-beast.com/v1/modpacks/";
 
     QString LEGACY_FTB_CDN_BASE_URL = "https://dist.creeper.host/FTB2/";
 

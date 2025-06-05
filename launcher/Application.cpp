@@ -48,6 +48,7 @@
 #include "net/PasteUpload.h"
 #include "pathmatcher/MultiMatcher.h"
 #include "pathmatcher/SimplePrefixMatcher.h"
+#include "tasks/Task.h"
 #include "tools/GenericProfiler.h"
 #include "ui/InstanceWindow.h"
 #include "ui/MainWindow.h"
@@ -159,6 +160,7 @@
 
 #if defined Q_OS_WIN32
 #include <windows.h>
+#include <QStyleHints>
 #include "WindowsConsole.h"
 #endif
 
@@ -230,7 +232,7 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
     setApplicationDisplayName(QString("%1 %2").arg(BuildConfig.LAUNCHER_DISPLAYNAME, BuildConfig.printableVersionString()));
     setApplicationVersion(BuildConfig.printableVersionString() + "\n" + BuildConfig.GIT_COMMIT);
     setDesktopFileName(BuildConfig.LAUNCHER_DESKTOPFILENAME);
-    startTime = QDateTime::currentDateTime();
+    m_startTime = QDateTime::currentDateTime();
 
     // Don't quit on hiding the last window
     this->setQuitOnLastWindowClosed(false);
@@ -1092,6 +1094,9 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
 bool Application::createSetupWizard()
 {
     bool javaRequired = [&]() {
+        if (BuildConfig.JAVA_DOWNLOADER_ENABLED && m_settings->get("AutomaticJavaDownload").toBool()) {
+            return false;
+        }
         bool ignoreJavaWizard = m_settings->get("IgnoreJavaWizard").toBool();
         if (ignoreJavaWizard) {
             return false;
@@ -1104,10 +1109,7 @@ bool Application::createSetupWizard()
         }
         QString currentJavaPath = settings()->get("JavaPath").toString();
         QString actualPath = FS::ResolveExecutable(currentJavaPath);
-        if (actualPath.isNull()) {
-            return true;
-        }
-        return false;
+        return actualPath.isNull();
     }();
     bool askjava = BuildConfig.JAVA_DOWNLOADER_ENABLED && !javaRequired && !m_settings->get("AutomaticJavaDownload").toBool() &&
                    !m_settings->get("AutomaticJavaSwitch").toBool() && !m_settings->get("UserAskedAboutAutomaticJavaDownload").toBool();
@@ -1116,14 +1118,23 @@ bool Application::createSetupWizard()
     bool validWidgets = m_themeManager->isValidApplicationTheme(settings()->get("ApplicationTheme").toString());
     bool validIcons = m_themeManager->isValidIconTheme(settings()->get("IconTheme").toString());
     bool login = !m_accounts->anyAccountIsValid() && capabilities() & Application::SupportsMSA;
+    login = false;
     bool themeInterventionRequired = !validWidgets || !validIcons;
     bool wizardRequired = javaRequired || languageRequired || pasteInterventionRequired || themeInterventionRequired || askjava || login;
     if (wizardRequired) {
         // set default theme after going into theme wizard
         if (!validIcons)
             settings()->set("IconTheme", QString("pe_colored"));
-        if (!validWidgets)
-            settings()->set("ApplicationTheme", QString("system"));
+        if (!validWidgets) {
+#if defined(Q_OS_WIN32) && QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+            const QString style =
+                QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? QStringLiteral("dark") : QStringLiteral("bright");
+#else
+            const QString style = QStringLiteral("system");
+#endif
+
+            settings()->set("ApplicationTheme", style);
+        }
 
         m_themeManager->applyCurrentlySelectedTheme(true);
 
@@ -1190,6 +1201,9 @@ bool Application::event(QEvent* event)
 #endif
 
     if (event->type() == QEvent::FileOpen) {
+        if (!m_mainWindow) {
+            showMainWindow(false);
+        }
         auto ev = static_cast<QFileOpenEvent*>(event);
         m_mainWindow->processURLs({ ev->url() });
     }
@@ -1348,6 +1362,9 @@ void Application::messageReceived(const QByteArray& message)
             qWarning() << "Received" << command << "message without a zip path/URL.";
             return;
         }
+        if (!m_mainWindow) {
+            showMainWindow(false);
+        }
         m_mainWindow->processURLs({ normalizeImportUrl(url) });
     } else if (command == "launch") {
         QString id = received.args["id"];
@@ -1426,6 +1443,7 @@ bool Application::launch(InstancePtr instance, bool online, bool demo, Minecraft
     if (m_updateRunning) {
         qDebug() << "Cannot launch instances while an update is running. Please try again when updates are completed.";
     } else if (instance->canLaunch()) {
+        QMutexLocker locker(&m_instanceExtrasMutex);
         auto& extras = m_instanceExtras[instance->id()];
         auto window = extras.window;
         if (window) {
@@ -1450,7 +1468,7 @@ bool Application::launch(InstancePtr instance, bool online, bool demo, Minecraft
         connect(controller.get(), &LaunchController::failed, this, &Application::controllerFailed);
         connect(controller.get(), &LaunchController::aborted, this, [this] { controllerFailed(tr("Aborted")); });
         addRunningInstance();
-        controller->start();
+        QMetaObject::invokeMethod(controller.get(), &Task::start, Qt::QueuedConnection);
         return true;
     } else if (instance->isRunning()) {
         showInstanceWindow(instance, "console");
@@ -1468,9 +1486,11 @@ bool Application::kill(InstancePtr instance)
         qWarning() << "Attempted to kill instance" << instance->id() << ", which isn't running.";
         return false;
     }
+    QMutexLocker locker(&m_instanceExtrasMutex);
     auto& extras = m_instanceExtras[instance->id()];
     // NOTE: copy of the shared pointer keeps it alive
     auto controller = extras.controller;
+    locker.unlock();
     if (controller) {
         return controller->abort();
     }
@@ -1524,12 +1544,14 @@ void Application::controllerSucceeded()
     if (!controller)
         return;
     auto id = controller->id();
+
+    QMutexLocker locker(&m_instanceExtrasMutex);
     auto& extras = m_instanceExtras[id];
 
     // on success, do...
     if (controller->instance()->settings()->get("AutoCloseConsole").toBool()) {
         if (extras.window) {
-            extras.window->close();
+            QMetaObject::invokeMethod(extras.window, &QWidget::close, Qt::QueuedConnection);
         }
     }
     extras.controller.reset();
@@ -1549,6 +1571,7 @@ void Application::controllerFailed(const QString& error)
     if (!controller)
         return;
     auto id = controller->id();
+    QMutexLocker locker(&m_instanceExtrasMutex);
     auto& extras = m_instanceExtras[id];
 
     // on failure, do... nothing
@@ -1606,6 +1629,7 @@ InstanceWindow* Application::showInstanceWindow(InstancePtr instance, QString pa
     if (!instance)
         return nullptr;
     auto id = instance->id();
+    QMutexLocker locker(&m_instanceExtrasMutex);
     auto& extras = m_instanceExtras[id];
     auto& window = extras.window;
 
@@ -1643,6 +1667,7 @@ void Application::on_windowClose()
     m_openWindows--;
     auto instWindow = qobject_cast<InstanceWindow*>(QObject::sender());
     if (instWindow) {
+        QMutexLocker locker(&m_instanceExtrasMutex);
         auto& extras = m_instanceExtras[instWindow->instanceId()];
         extras.window = nullptr;
         if (extras.controller) {
@@ -1890,7 +1915,7 @@ bool Application::handleDataMigration(const QString& currentData,
         matcher->add(std::make_shared<SimplePrefixMatcher>("themes/"));
 
         ProgressDialog diag;
-        DataMigrationTask task(nullptr, oldData, currentData, matcher);
+        DataMigrationTask task(oldData, currentData, matcher);
         if (diag.execWithTask(&task)) {
             qDebug() << "<> Migration succeeded";
             setDoNotMigrate();
@@ -1928,4 +1953,32 @@ QUrl Application::normalizeImportUrl(QString const& url)
 const QString Application::javaPath()
 {
     return m_settings->get("JavaDir").toString();
+}
+
+void Application::addQSavePath(QString path)
+{
+    QMutexLocker locker(&m_qsaveResourcesMutex);
+    m_qsaveResources[path] = m_qsaveResources.value(path, 0) + 1;
+}
+
+void Application::removeQSavePath(QString path)
+{
+    QMutexLocker locker(&m_qsaveResourcesMutex);
+    auto count = m_qsaveResources.value(path, 0) - 1;
+    if (count <= 0) {
+        m_qsaveResources.remove(path);
+    } else {
+        m_qsaveResources[path] = count;
+    }
+}
+
+bool Application::checkQSavePath(QString path)
+{
+    QMutexLocker locker(&m_qsaveResourcesMutex);
+    for (auto partialPath : m_qsaveResources.keys()) {
+        if (path.startsWith(partialPath) && m_qsaveResources.value(partialPath, 0) > 0) {
+            return true;
+        }
+    }
+    return false;
 }

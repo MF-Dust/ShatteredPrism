@@ -4,6 +4,7 @@
 #include <QNetworkRequest>
 
 #include "minecraft/auth/AccountData.h"
+#include "minecraft/auth/steps/AuthlibInjectorMetadataStep.h"
 #include "minecraft/auth/steps/EntitlementsStep.h"
 #include "minecraft/auth/steps/GetSkinStep.h"
 #include "minecraft/auth/steps/LauncherLoginStep.h"
@@ -21,7 +22,7 @@
 
 #include <Application.h>
 
-AuthFlow::AuthFlow(AccountData* data, Action action, QObject* parent, const std::optional<QString> password) : Task(parent), m_data(data)
+AuthFlow::AuthFlow(AccountData* data, Action action, const std::optional<QString> password) : Task(), m_data(data)
 {
     if (data->type == AccountType::MSA) {
         if (action == Action::DeviceCode) {
@@ -46,6 +47,7 @@ AuthFlow::AuthFlow(AccountData* data, Action action, QObject* parent, const std:
     } else if (data->type == AccountType::AuthlibInjector) {
         m_steps.append(makeShared<YggdrasilStep>(m_data, password));
         m_steps.append(makeShared<YggdrasilMinecraftProfileStep>(m_data));
+        m_steps.append(makeShared<AuthlibInjectorMetadataStep>(m_data));
         m_steps.append(makeShared<GetSkinStep>(m_data));
     }
     changeState(AccountTaskState::STATE_CREATED);

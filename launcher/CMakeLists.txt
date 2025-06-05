@@ -30,6 +30,7 @@ set(CORE_SOURCES
     StringUtils.cpp
     QVariantUtils.h
     RuntimeContext.h
+    PSaveFile.h
 
     # Basic instance manipulation tasks (derived from InstanceTask)
     InstanceCreationTask.h
@@ -237,6 +238,8 @@ set(MINECRAFT_SOURCES
     minecraft/auth/AuthFlow.cpp
     minecraft/auth/AuthFlow.h
 
+    minecraft/auth/steps/AuthlibInjectorMetadataStep.cpp
+    minecraft/auth/steps/AuthlibInjectorMetadataStep.h
     minecraft/auth/steps/EntitlementsStep.cpp
     minecraft/auth/steps/EntitlementsStep.h
     minecraft/auth/steps/GetSkinStep.cpp
@@ -384,6 +387,10 @@ set(MINECRAFT_SOURCES
     minecraft/AssetsUtils.cpp
 
     # Minecraft skins
+    minecraft/skins/AuthlibInjectorTextureDelete.cpp
+    minecraft/skins/AuthlibInjectorTextureDelete.h
+    minecraft/skins/AuthlibInjectorTextureUpload.cpp
+    minecraft/skins/AuthlibInjectorTextureUpload.h
     minecraft/skins/CapeChange.cpp
     minecraft/skins/CapeChange.h
     minecraft/skins/SkinUpload.cpp
@@ -1059,8 +1066,6 @@ SET(LAUNCHER_SOURCES
     ui/dialogs/CopyInstanceDialog.h
     ui/dialogs/CustomMessageBox.cpp
     ui/dialogs/CustomMessageBox.h
-    ui/dialogs/EditAccountDialog.cpp
-    ui/dialogs/EditAccountDialog.h
     ui/dialogs/ExportInstanceDialog.cpp
     ui/dialogs/ExportInstanceDialog.h
     ui/dialogs/ExportPackDialog.cpp
@@ -1250,7 +1255,6 @@ qt_wrap_ui(LAUNCHER_UI
     ui/dialogs/OfflineLoginDialog.ui
     ui/dialogs/AuthlibInjectorLoginDialog.ui
     ui/dialogs/AboutDialog.ui
-    ui/dialogs/EditAccountDialog.ui
     ui/dialogs/ReviewMessageBox.ui
     ui/dialogs/ScrollMessageBox.ui
     ui/dialogs/BlockedModsDialog.ui
